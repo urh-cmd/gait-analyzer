@@ -50,7 +50,7 @@ with col1:
     if uploaded_file is not None:
         # Save uploaded file
         upload_dir = Path("data/raw")
-        upload_dir.mkdir(exist_ok=True)
+        upload_dir.mkdir(parents=True, exist_ok=True)
         
         file_path = upload_dir / uploaded_file.name
         with open(file_path, "wb") as f:

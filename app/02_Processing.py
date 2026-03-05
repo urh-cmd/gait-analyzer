@@ -158,7 +158,7 @@ log_message("Speichere Keypoint-Daten...")
 
 # Create output directory
 output_dir = Path("data/processed")
-output_dir.mkdir(exist_ok=True)
+output_dir.mkdir(parents=True, exist_ok=True)
 
 # Generate output filename
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

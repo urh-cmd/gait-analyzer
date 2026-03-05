@@ -200,7 +200,7 @@ with tab2:
         conf_suffix = str(int(min_conf * 10))
         
         out_dir = Path("data/processed")
-        out_dir.mkdir(exist_ok=True)
+        out_dir.mkdir(parents=True, exist_ok=True)
         
         # Include timestamp to ensure uniqueness per analysis
         pose_video_path = out_dir / f"pose_{pid}_{source_vid}_{timestamp}_c{conf_suffix}.mp4"
@@ -355,7 +355,7 @@ with tab4:
             with st.spinner("Generiere PDF-Bericht..."):
                 try:
                     output_dir = Path("data/processed")
-                    output_dir.mkdir(exist_ok=True)
+                    output_dir.mkdir(parents=True, exist_ok=True)
                     
                     patient_data = {
                         'patient_id': metadata.get('patient_id', 'Unknown'),
