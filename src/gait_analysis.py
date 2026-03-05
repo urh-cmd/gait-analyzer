@@ -17,10 +17,18 @@ class GaitMetrics:
     cadence: float = 0.0  # steps per minute
     step_time_left: float = 0.0  # seconds
     step_time_right: float = 0.0
-    double_support_time: float = 0.0  # percentage of gait cycle
-    single_support_time: float = 0.0
-    swing_phase_percent: float = 0.0
-    stance_phase_percent: float = 0.0
+    
+    # Phase percentages (Week 11-12)
+    double_support_percent: float = 0.0  # % of gait cycle where both feet on ground
+    single_support_percent: float = 0.0   # % where one foot on ground
+    swing_phase_left: float = 0.0         # % for left leg
+    swing_phase_right: float = 0.0        # % for right leg
+    stance_phase_left: float = 0.0        # % for left leg
+    stance_phase_right: float = 0.0       # % for right leg
+    
+    # Swing phase symmetry (Week 11-12)
+    swing_symmetry_index: float = 0.0     # Difference between left/right swing
+    stance_symmetry_index: float = 0.0    # Difference between left/right stance
     
     # Spatial parameters
     step_length_left: float = 0.0  # cm
@@ -41,11 +49,119 @@ class GaitMetrics:
     # Red flags
     has_asymmetry: bool = False
     has_irregular_cadence: bool = False
+    has_phase_asymmetry: bool = False
     
 
-def detect_heel_strikes(keypoints_data: List[Dict], fps: float = 30.0) -> Tuple[List[int], List[int]]:
+def calculate_gait_phases(keypoints_data: List[Dict], left_strikes: List[int], 
+                         right_strikes: List[int], fps: float = 30.0) -> Dict[str, float]:
+    """
+    Calculate gait phase percentages (Week 11-12).
+    
+    Returns:
+        Dictionary with phase percentages and symmetry indices
+    """
+    if not left_strikes or not right_strikes or len(keypoints_data) < 10:
+        return {
+            'double_support': 0.0,
+            'single_support': 0.0,
+            'swing_left': 0.0,
+            'swing_right': 0.0,
+            'stance_left': 0.0,
+            'stance_right': 0.0,
+            'swing_symmetry': 0.0,
+            'stance_symmetry': 0.0
+        }
+    
+    total_frames = len(keypoints_data)
+    
+    # Sort strikes chronologically
+    all_events = []
+    for frame in left_strikes:
+        all_events.append(('left', frame))
+    for frame in right_strikes:
+        all_events.append(('right', frame))
+    all_events.sort(key=lambda x: x[1])
+    
+    if len(all_events) < 4:
+        return {k: 0.0 for k in ['double_support', 'single_support', 'swing_left', 'swing_right', 
+                                  'stance_left', 'stance_right', 'swing_symmetry', 'stance_symmetry']}
+    
+    # Calculate phases based on alternating pattern
+    double_support_frames = 0
+    single_support_frames = 0
+    left_swing_frames = 0
+    right_swing_frames = 0
+    left_stance_frames = 0
+    right_stance_frames = 0
+    
+    for i in range(len(all_events) - 1):
+        current_side, current_frame = all_events[i]
+        next_side, next_frame = all_events[i + 1]
+        duration = next_frame - current_frame
+        
+        if current_side != next_side:
+            # Alternating steps - single support phase
+            single_support_frames += duration
+            
+            # The leg that just struck is now in stance
+            # The other leg is in swing
+            if current_side == 'left':
+                left_stance_frames += duration
+                right_swing_frames += duration  # Right was swinging before strike
+            else:
+                right_stance_frames += duration
+                left_swing_frames += duration
+        else:
+            # Same side twice - indicates double support or irregular gait
+            double_support_frames += duration // 2
+            single_support_frames += duration // 2
+    
+    # Calculate percentages
+    def safe_percent(frames):
+        return (frames / total_frames * 100) if total_frames > 0 else 0.0
+    
+    swing_left_pct = safe_percent(left_swing_frames)
+    swing_right_pct = safe_percent(right_swing_frames)
+    stance_left_pct = safe_percent(left_stance_frames)
+    stance_right_pct = safe_percent(right_stance_frames)
+    
+    # Normalized to gait cycle (should sum to ~100%)
+    total_cycle = swing_left_pct + stance_left_pct
+    if total_cycle > 0:
+        swing_left_pct = (swing_left_pct / total_cycle) * 100
+        stance_left_pct = (stance_left_pct / total_cycle) * 100
+    
+    total_cycle_right = swing_right_pct + stance_right_pct
+    if total_cycle_right > 0:
+        swing_right_pct = (swing_right_pct / total_cycle_right) * 100
+        stance_right_pct = (stance_right_pct / total_cycle_right) * 100
+    
+    # Calculate symmetry indices
+    swing_symmetry = abs(swing_left_pct - swing_right_pct) / ((swing_left_pct + swing_right_pct) / 2) * 100 if (swing_left_pct + swing_right_pct) > 0 else 0
+    stance_symmetry = abs(stance_left_pct - stance_right_pct) / ((stance_left_pct + stance_right_pct) / 2) * 100 if (stance_left_pct + stance_right_pct) > 0 else 0
+    
+    return {
+        'double_support': safe_percent(double_support_frames),
+        'single_support': safe_percent(single_support_frames),
+        'swing_left': swing_left_pct,
+        'swing_right': swing_right_pct,
+        'stance_left': stance_left_pct,
+        'stance_right': stance_right_pct,
+        'swing_symmetry': swing_symmetry,
+        'stance_symmetry': stance_symmetry
+    }
+
+
+def detect_heel_strikes(keypoints_data: List[Dict], fps: float = 30.0,
+                       min_step_interval_ms: float = 200.0) -> Tuple[List[int], List[int]]:
     """
     Detect heel strikes (initial contact) for left and right foot.
+    Improved algorithm with better sensitivity.
+    
+    Args:
+        keypoints_data: List of frame data with keypoints
+        fps: Video framerate
+        min_step_interval_ms: Minimum time between steps (ms) to avoid double-counting
     
     Returns:
         (left_heel_strike_frames, right_heel_strike_frames)
@@ -53,43 +169,57 @@ def detect_heel_strikes(keypoints_data: List[Dict], fps: float = 30.0) -> Tuple[
     left_strikes = []
     right_strikes = []
     
-    prev_left_y = None
-    prev_right_y = None
+    min_frame_interval = int((min_step_interval_ms / 1000.0) * fps)
+    
+    # Track Y positions over time for both ankles
+    left_y_history = []
+    right_y_history = []
+    valid_frames = []
     
     for i, frame in enumerate(keypoints_data):
         kps = frame.get("keypoints", [])
-        if len(kps) < 16:
+        if len(kps) < 17:
             continue
         
-        # Left ankle (index 15), Right ankle (index 16) in COCO format
-        left_ankle = kps[15] if len(kps) > 15 else None
-        right_ankle = kps[16] if len(kps) > 16 else None
+        # Get ankle positions with confidence check
+        left_ankle = kps[15] if len(kps) > 15 and len(kps[15]) >= 3 and kps[15][2] > 0.3 else None
+        right_ankle = kps[16] if len(kps) > 16 and len(kps[16]) >= 3 and kps[16][2] > 0.3 else None
         
-        if left_ankle and len(left_ankle) >= 2 and prev_left_y is not None:
-            # Heel strike: Y position changes from decreasing to increasing (foot hitting ground)
-            current_y = left_ankle[1]
-            if prev_left_y < current_y - 5:  # Threshold for movement
-                # Check if it's a local minimum (heel strike)
-                if i > 0 and i < len(keypoints_data) - 1:
-                    prev_frame_y = keypoints_data[i-1]["keypoints"][15][1] if len(keypoints_data[i-1]["keypoints"]) > 15 else current_y
-                    next_frame_y = keypoints_data[i+1]["keypoints"][15][1] if len(keypoints_data[i+1]["keypoints"]) > 15 else current_y
-                    if current_y <= prev_frame_y and current_y <= next_frame_y:
-                        left_strikes.append(i)
-            prev_left_y = current_y
-        elif left_ankle:
-            prev_left_y = left_ankle[1]
+        if left_ankle and right_ankle:
+            left_y_history.append((i, left_ankle[1]))
+            right_y_history.append((i, right_ankle[1]))
+            valid_frames.append(i)
+    
+    if len(left_y_history) < 10 or len(right_y_history) < 10:
+        return left_strikes, right_strikes
+    
+    # Find local minima in Y position (lowest point = heel strike)
+    def find_strikes(y_history, side_name):
+        strikes = []
+        window_size = max(3, min_frame_interval // 2)
         
-        if right_ankle and len(right_ankle) >= 2 and prev_right_y is not None:
-            current_y = right_ankle[1]
-            if prev_right_y < current_y - 5:
-                if i > 0 and i < len(keypoints_data) - 1:
-                    prev_frame_y = keypoints_data[i-1]["keypoints"][16][1] if len(keypoints_data[i-1]["keypoints"]) > 16 else current_y
-                    next_frame_y = keypoints_data[i+1]["keypoints"][16][1] if len(keypoints_data[i+1]["keypoints"]) > 16 else current_y
-                    if current_y <= prev_frame_y and current_y <= next_frame_y:
-                        right_strikes.append(i)
-            prev_right_y = current_y
-        elif right_ankle:
-            prev_right_y = right_ankle[1]
+        for i in range(window_size, len(y_history) - window_size):
+            frame_idx, y_val = y_history[i]
+            
+            # Check if local minimum
+            is_minimum = True
+            for j in range(1, window_size + 1):
+                if i - j >= 0 and y_history[i - j][1] < y_val:
+                    is_minimum = False
+                    break
+                if i + j < len(y_history) and y_history[i + j][1] < y_val:
+                    is_minimum = False
+                    break
+            
+            if is_minimum:
+                # Check minimum interval from last strike
+                if not strikes or (frame_idx - strikes[-1]) >= min_frame_interval:
+                    strikes.append(frame_idx)
+        
+        return strikes
+    
+    left_strikes = find_strikes(left_y_history, "left")
+    right_strikes = find_strikes(right_y_history, "right")
     
     return left_strikes, right_strikes
 
@@ -188,19 +318,36 @@ def calculate_joint_angles(keypoints_data: List[Dict]) -> Dict[str, List[float]]
 
 
 def calculate_angle(p1: List[float], p2: List[float], p3: List[float]) -> float:
-    """Calculate angle at p2 formed by p1-p2-p3 in degrees."""
-    a = np.array([p1[0], p1[1]])
-    b = np.array([p2[0], p2[1]])
-    c = np.array([p3[0], p3[1]])
-    
-    ba = a - b
-    bc = c - b
-    
-    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
-    cosine_angle = np.clip(cosine_angle, -1.0, 1.0)
-    
-    angle = np.arccos(cosine_angle)
-    return np.degrees(angle)
+    """
+    Calculate interior angle at p2 formed by p1-p2-p3 in degrees.
+    Returns angle between 0-180 degrees.
+    """
+    try:
+        a = np.array([float(p1[0]), float(p1[1])])
+        b = np.array([float(p2[0]), float(p2[1])])
+        c = np.array([float(p3[0]), float(p3[1])])
+        
+        # Vectors from p2 to p1 and p2 to p3
+        v1 = a - b
+        v2 = c - b
+        
+        # Check for zero vectors
+        norm_v1 = np.linalg.norm(v1)
+        norm_v2 = np.linalg.norm(v2)
+        
+        if norm_v1 < 1e-10 or norm_v2 < 1e-10:
+            return 0.0
+        
+        # Calculate angle
+        cos_angle = np.dot(v1, v2) / (norm_v1 * norm_v2)
+        cos_angle = np.clip(cos_angle, -1.0, 1.0)
+        
+        angle_rad = np.arccos(cos_angle)
+        angle_deg = np.degrees(angle_rad)
+        
+        return angle_deg
+    except Exception:
+        return 0.0
 
 
 def analyze_gait(keypoints_data: List[Dict], fps: float = 30.0, 
@@ -241,6 +388,22 @@ def analyze_gait(keypoints_data: List[Dict], fps: float = 30.0,
         right_intervals = np.diff(right_strikes) / fps
         metrics.step_time_right = np.mean(right_intervals) if len(right_intervals) > 0 else 0
     
+    # ===== Week 11-12: Advanced Phase Analysis =====
+    phases = calculate_gait_phases(keypoints_data, left_strikes, right_strikes, fps)
+    
+    metrics.double_support_percent = phases['double_support']
+    metrics.single_support_percent = phases['single_support']
+    metrics.swing_phase_left = phases['swing_left']
+    metrics.swing_phase_right = phases['swing_right']
+    metrics.stance_phase_left = phases['stance_left']
+    metrics.stance_phase_right = phases['stance_right']
+    metrics.swing_symmetry_index = phases['swing_symmetry']
+    metrics.stance_symmetry_index = phases['stance_symmetry']
+    
+    # Phase asymmetry detection (>15% difference is significant for phases)
+    metrics.has_phase_asymmetry = (metrics.swing_symmetry_index > 15 or 
+                                   metrics.stance_symmetry_index > 15)
+    
     # Step lengths
     left_length, right_length = calculate_step_lengths(keypoints_data, pixel_to_cm)
     metrics.step_length_left = left_length
@@ -259,11 +422,6 @@ def analyze_gait(keypoints_data: List[Dict], fps: float = 30.0,
         metrics.max_knee_flexion = max(angles['knee_left'])
     if angles['hip_left']:
         metrics.hip_range_of_motion = max(angles['hip_left']) - min(angles['hip_left'])
-    
-    # Phase percentages (simplified)
-    if metrics.step_time_left > 0:
-        metrics.swing_phase_percent = 40.0  # Typical value
-        metrics.stance_phase_percent = 60.0
     
     return metrics
 

@@ -169,8 +169,11 @@ def create_gait_report(output_path: str, patient_data: dict, metrics,
          "✅ Normal" if 90 <= metrics.cadence <= 130 else "⚠️ Auffällig"],
         ["Schrittzeit links", f"{metrics.step_time_left:.2f} s", "~1.0s", "-"],
         ["Schrittzeit rechts", f"{metrics.step_time_right:.2f} s", "~1.0s", "-"],
-        ["Swing Phase", f"{metrics.swing_phase_percent:.1f}%", "~40%", "-"],
-        ["Stance Phase", f"{metrics.stance_phase_percent:.1f}%", "~60%", "-"],
+        ["Doppelstandphase", f"{metrics.double_support_percent:.1f}%", "10-20%",
+         "✅ Normal" if 10 <= metrics.double_support_percent <= 20 else "⚠️ Auffällig"],
+        ["Einfachstandphase", f"{metrics.single_support_percent:.1f}%", "~40%", "-"],
+        ["Swing Phase Links", f"{metrics.swing_phase_left:.1f}%", "~40%", "-"],
+        ["Swing Phase Rechts", f"{metrics.swing_phase_right:.1f}%", "~40%", "-"],
     ]
     
     temporal_table = Table(temporal_data, colWidths=[4.5*cm, 3.5*cm, 2.5*cm, 3*cm])

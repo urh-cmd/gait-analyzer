@@ -300,12 +300,28 @@ with tab4:
         
         # Calculate metrics
         with st.spinner("Analysiere Gangmuster..."):
+            # Debug info
+            st.write(f"Debug: {len(keypoints_data)} Frames, {fps} FPS, {len(keypoints_data[0].get('keypoints', []))} Keypoints")
+            
             metrics = analyze_gait(
                 keypoints_data, 
                 fps=fps,
                 duration_seconds=duration,
                 pixel_to_cm=1.0  # TODO: Calibration
             )
+            
+            # Validation warnings
+            if metrics.step_count < 2:
+                st.warning("⚠️ Weniger als 2 Schritte erkannt. Mögliche Ursachen:\n"
+                          "- Video zu kurz\n"
+                          "- Person steht still\n"
+                          "- Keypoint-Qualität zu niedrig (Confidence erhöhen?)")
+            
+            if metrics.cadence < 10:
+                st.warning("⚠️ Sehr niedrige Cadenz. Normal: 100-120 Schritte/Min.")
+            
+            if metrics.max_knee_flexion > 160:
+                st.warning("⚠️ Unrealistische Knieflexion (>160°). Winkelberechnung prüfen.")
         
         # Display summary
         st.markdown("#### 📝 Zusammenfassung")
@@ -324,22 +340,82 @@ with tab4:
         with c4:
             st.metric("L/R Verhältnis", f"{metrics.left_right_ratio:.2f}")
         
-        # Asymmetry warning
-        if metrics.has_asymmetry:
-            st.error("⚠️ **Asymmetrie erkannt!** Ein Symmetrie-Index >10% deutet auf ein auffälliges Gangbild hin.")
+        # Asymmetry warnings
+        asymmetry_col1, asymmetry_col2 = st.columns(2)
+        with asymmetry_col1:
+            if metrics.has_asymmetry:
+                st.error("⚠️ **Längen-Asymmetrie!** >10% Unterschied")
+            else:
+                st.success("✅ Symmetrische Schrittlängen")
+        
+        with asymmetry_col2:
+            if metrics.has_phase_asymmetry:
+                st.error("⚠️ **Phasen-Asymmetrie!** Schwung/Stance ungleich")
+            else:
+                st.success("✅ Symmetrische Phasen")
+        
+        # ===== Week 11-12: Extended Phase Analysis =====
+        st.markdown("---")
+        st.markdown("#### ⚡ Erweiterte Phasen-Analyse (Week 11-12)")
+        
+        phase_cols = st.columns(4)
+        with phase_cols[0]:
+            st.metric("Doppelstandphase", f"{metrics.double_support_percent:.1f}%", 
+                     help="Zeit mit beiden Füßen am Boden")
+        with phase_cols[1]:
+            st.metric("Einfachstandphase", f"{metrics.single_support_percent:.1f}%",
+                     help="Zeit mit einem Fuß am Boden")
+        with phase_cols[2]:
+            st.metric("Swing-Symmetrie", f"{metrics.swing_symmetry_index:.1f}%",
+                     help="Unterschied Links/Rechts Schwungphase")
+        with phase_cols[3]:
+            st.metric("Stance-Symmetrie", f"{metrics.stance_symmetry_index:.1f}%",
+                     help="Unterschied Links/Rechts Standphase")
+        
+        # Phase breakdown
+        st.markdown("**Phasen-Aufschlüsselung pro Bein:**")
+        
+        phase_table = {
+            "Phase": ["Schwungphase (Swing)", "Standphase (Stance)"],
+            "Links": [f"{metrics.swing_phase_left:.1f}%", f"{metrics.stance_phase_left:.1f}%"],
+            "Rechts": [f"{metrics.swing_phase_right:.1f}%", f"{metrics.stance_phase_right:.1f}%"],
+            "Normalwert": ["~40%", "~60%"]
+        }
+        
+        import pandas as pd
+        st.dataframe(pd.DataFrame(phase_table), use_container_width=True, hide_index=True)
+        
+        # Clinical interpretation
+        st.markdown("#### 💡 Klinische Bewertung")
+        
+        interpretations = []
+        
+        # Double support
+        if 10 <= metrics.double_support_percent <= 20:
+            interpretations.append("✅ Doppelstandphase im Normalbereich (10-20%)")
+        elif metrics.double_support_percent < 10:
+            interpretations.append("⚠️ Kurze Doppelstandphase - Instabilität möglich")
         else:
-            st.success("✅ **Symmetrischer Gang** - Keine signifikante Asymmetrie festgestellt.")
+            interpretations.append("⚠️ Lange Doppelstandphase - Vorsichtiger Gang")
+        
+        # Swing symmetry
+        if metrics.swing_symmetry_index < 10:
+            interpretations.append("✅ Ausgewogene Schwungphasen")
+        else:
+            interpretations.append(f"⚠️ Ungleiche Schwungphasen ({metrics.swing_symmetry_index:.1f}% Diff.)")
+        
+        for interp in interpretations:
+            st.write(interp)
         
         # Detailed metrics table
-        st.markdown("#### 📈 Detaillierte Metriken")
+        st.markdown("---")
+        st.markdown("#### 📈 Weitere Metriken")
         
         col_left, col_right = st.columns(2)
         with col_left:
             st.markdown("**Zeitliche Parameter:**")
             st.write(f"• Schrittzeit links: {metrics.step_time_left:.2f}s")
             st.write(f"• Schrittzeit rechts: {metrics.step_time_right:.2f}s")
-            st.write(f"• Swing Phase: {metrics.swing_phase_percent:.1f}%")
-            st.write(f"• Stance Phase: {metrics.stance_phase_percent:.1f}%")
         
         with col_right:
             st.markdown("**Räumliche Parameter:**")
