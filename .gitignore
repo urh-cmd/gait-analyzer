@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Data (nicht ins Git!)
+data/raw/*.mp4
+data/raw/*.avi
+data/raw/*.mov
+data/processed/*.json
+data/processed/*.mp4
+data/processed/*.pdf
+models/*.pt
+yolov8n-pose.pt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml

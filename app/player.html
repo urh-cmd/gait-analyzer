@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gait Analyzer - Video Player</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 { text-align: center; margin-bottom: 20px; color: #4CAF50; }
+        .video-wrapper {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        video {
+            width: 100%;
+            display: block;
+        }
+        #poseCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .controls {
+            margin-top: 20px;
+            background: #16213e;
+            padding: 20px;
+            border-radius: 12px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #0f3460;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.1s;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #0f3460;
+            color: #fff;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #1a4a7a;
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button.primary {
+            background: #4CAF50;
+            font-weight: bold;
+        }
+        button.primary:hover {
+            background: #45a049;
+        }
+        button.danger {
+            background: #f44336;
+        }
+        button.danger:hover {
+            background: #da190b;
+        }
+        .info {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .info-item {
+            background: #0f3460;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .info-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .settings {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .setting {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] {
+            width: 150px;
+            cursor: pointer;
+        }
+        .status {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: #0f3460;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #888;
+        }
+        .spinner {
+            border: 4px solid #0f3460;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Gait Analyzer - Video Player</h1>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>Lade Video und Pose-Daten...</div>
+        </div>
+        
+        <div id="player" style="display: none;">
+            <div class="video-wrapper">
+                <video id="video" crossorigin="anonymous">
+                    <source id="videoSource" src="" type="video/mp4">
+                    Dein Browser unterstützt das Video-Tag nicht.
+                </video>
+                <canvas id="poseCanvas"></canvas>
+            </div>
+            
+            <div class="controls">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                
+                <div class="buttons">
+                    <button onclick="seekTo(0)">⏮️ Start</button>
+                    <button onclick="seekRelative(-30)">⏮️ -30s</button>
+                    <button onclick="seekRelative(-10)">⏮️ -10s</button>
+                    <button id="playBtn" class="primary" onclick="togglePlay()">▶️ Abspielen</button>
+                    <button onclick="seekRelative(10)">⏭️ +10s</button>
+                    <button onclick="seekRelative(30)">⏭️ +30s</button>
+                    <button class="danger" onclick="changeSpeed(-0.25)">🐌 -</button>
+                    <button class="danger" onclick="changeSpeed(0.25)">🚀 +</button>
+                </div>
+                
+                <div class="info">
+                    <div class="info-item">
+                        <div class="info-label">Frame</div>
+                        <div class="info-value" id="frameDisplay">0</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Zeit</div>
+                        <div class="info-value" id="timeDisplay">0.00s</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Geschwindigkeit</div>
+                        <div class="info-value" id="speedDisplay">1.0x</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">FPS</div>
+                        <div class="info-value" id="fpsDisplay">30</div>
+                    </div>
+                </div>
+                
+                <div class="settings">
+                    <div class="setting">
+                        <label>Min. Confidence:</label>
+                        <input type="range" id="confSlider" min="0" max="100" value="50">
+                        <span id="confValue">0.5</span>
+                    </div>
+                    <div class="setting">
+                        <label>Canvas Größe:</label>
+                        <select id="canvasSize" onchange="resizeCanvas()">
+                            <option value="640x360">640x360</option>
+                            <option value="854x480">854x480</option>
+                            <option value="1280x720">1280x720</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="status" id="status">Bereit</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global state
+        let keypointsData = [];
+        let totalFrames = 0;
+        let fps = 30;
+        let isPlaying = false;
+        let playbackSpeed = 1.0;
+        let minConfidence = 0.5;
+        let animationFrame = null;
+        
+        // Skeleton connections (COCO format)
+        const skeleton = [
+            [0, 1, '#FF0000'], [1, 3, '#FF0000'],
+            [0, 2, '#FF0000'], [2, 4, '#FF0000'],
+            [5, 6, '#FFFF00'],
+            [5, 7, '#00FF00'], [7, 9, '#00FF00'],
+            [6, 8, '#FF00FF'], [8, 10, '#FF00FF'],
+            [5, 11, '#00FF00'], [6, 12, '#FF00FF'],
+            [11, 12, '#FFFF00'],
+            [11, 13, '#00FF00'], [13, 15, '#00FF00'],
+            [12, 14, '#FF00FF'], [14, 16, '#FF00FF']
+        ];
+        
+        // Elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('poseCanvas');
+        const ctx = canvas.getContext('2d');
+        const playBtn = document.getElementById('playBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        
+        // Initialize
+        async function init() {
+            try {
+                // Load keypoints data from URL parameter or default
+                const urlParams = new URLSearchParams(window.location.search);
+                const keypointsUrl = urlParams.get('keypoints');
+                const videoUrl = urlParams.get('video');
+                
+                if (!keypointsUrl || !videoUrl) {
+                    document.getElementById('loading').innerHTML = `
+                        <div style="color: #f44336;">
+                            ❌ Fehlende Parameter<br><br>
+                            Verwendung: player.html?video=PATH&keypoints=PATH
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Load keypoints
+                const response = await fetch(keypointsUrl);
+                const data = await response.json();
+                keypointsData = data.keypoints;
+                totalFrames = keypointsData.length;
+                fps = data.metadata.video_info?.fps || 30;
+                
+                // Set video source
+                document.getElementById('videoSource').src = videoUrl;
+                
+                // Update displays
+                document.getElementById('fpsDisplay').textContent = fps;
+                
+                // Setup canvas
+                resizeCanvas();
+                
+                // Event listeners
+                video.addEventListener('loadeddata', onVideoLoaded);
+                video.addEventListener('timeupdate', onTimeUpdate);
+                video.addEventListener('play', onPlay);
+                video.addEventListener('pause', onPause);
+                video.addEventListener('ended', onEnded);
+                
+                // Confidence slider
+                document.getElementById('confSlider').addEventListener('input', (e) => {
+                    minConfidence = e.target.value / 100;
+                    document.getElementById('confValue').textContent = minConfidence.toFixed(1);
+                    drawPose();
+                });
+                
+                // Progress bar click
+                progressBar.addEventListener('click', (e) => {
+                    const rect = progressBar.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    video.currentTime = percent * video.duration;
+                });
+                
+            } catch (error) {
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #f44336;">
+                        ❌ Fehler: ${error.message}
+                    </div>
+                `;
+                console.error(error);
+            }
+        }
+        
+        function onVideoLoaded() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('player').style.display = 'block';
+            drawPose();
+            updateStatus('Video geladen - bereit zur Wiedergabe');
+        }
+        
+        function onTimeUpdate() {
+            const time = video.currentTime;
+            const duration = video.duration || 1;
+            const frame = Math.floor(time * fps);
+            const percent = (time / duration) * 100;
+            
+            // Update UI
+            progressFill.style.width = percent + '%';
+            document.getElementById('frameDisplay').textContent = frame;
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + 's';
+            
+            // Draw pose for current frame
+            if (!isPlaying) {
+                drawPose();
+            }
+        }
+        
+        function onPlay() {
+            isPlaying = true;
+            playBtn.textContent = '⏸️ Pause';
+            playBtn.classList.remove('primary');
+            animate();
+            updateStatus('▶️ Wird abgespielt');
+        }
+        
+        function onPause() {
+            isPlaying = false;
+            playBtn.textContent = '▶️ Abspielen';
+            playBtn.classList.add('primary');
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            updateStatus('⏸️ Pause');
+        }
+        
+        function onEnded() {
+            isPlaying = false;
+            playBtn.textContent = '▶️ Abspielen';
+            playBtn.classList.add('primary');
+            updateStatus('✅ Ende erreicht');
+        }
+        
+        function animate() {
+            if (!isPlaying) return;
+            drawPose();
+            animationFrame = requestAnimationFrame(animate);
+        }
+        
+        function drawPose() {
+            if (!canvas.width || !keypointsData.length) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const time = video.currentTime;
+            const frame = Math.min(Math.floor(time * fps), totalFrames - 1);
+            const frameData = keypointsData[frame];
+            
+            if (!frameData || !frameData.keypoints) return;
+            
+            const keypoints = frameData.keypoints;
+            
+            // Draw skeleton
+            skeleton.forEach(([i, j, color]) => {
+                if (i < keypoints.length && j < keypoints.length) {
+                    const kp1 = keypoints[i];
+                    const kp2 = keypoints[j];
+                    if (kp1 && kp2 && kp1.length >= 3 && kp2.length >= 3) {
+                        if (kp1[2] >= minConfidence && kp2[2] >= minConfidence) {
+                            ctx.beginPath();
+                            ctx.moveTo(kp1[0], kp1[1]);
+                            ctx.lineTo(kp2[0], kp2[1]);
+                            ctx.strokeStyle = color;
+                            ctx.lineWidth = Math.max(2, canvas.width / 320);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            });
+            
+            // Draw keypoints
+            keypoints.forEach((kp, idx) => {
+                if (kp && kp.length >= 3 && kp[2] >= minConfidence) {
+                    const x = kp[0], y = kp[1], conf = kp[2];
+                    ctx.beginPath();
+                    ctx.arc(x, y, Math.max(4, canvas.width / 160), 0, Math.PI * 2);
+                    ctx.fillStyle = conf >= 0.8 ? '#00FF00' : conf >= 0.5 ? '#FFFF00' : '#FF0000';
+                    ctx.fill();
+                }
+            });
+        }
+        
+        function togglePlay() {
+            if (video.paused) {
+                video.play();
+            } else {
+                video.pause();
+            }
+        }
+        
+        function seekTo(time) {
+            video.currentTime = time;
+            drawPose();
+        }
+        
+        function seekRelative(seconds) {
+            seekTo(Math.max(0, Math.min(video.duration, video.currentTime + seconds)));
+        }
+        
+        function changeSpeed(delta) {
+            playbackSpeed = Math.max(0.25, Math.min(4, playbackSpeed + delta));
+            video.playbackRate = playbackSpeed;
+            document.getElementById('speedDisplay').textContent = playbackSpeed.toFixed(2) + 'x';
+            updateStatus(`Geschwindigkeit: ${playbackSpeed.toFixed(2)}x`);
+        }
+        
+        function resizeCanvas() {
+            const size = document.getElementById('canvasSize').value.split('x');
+            canvas.width = parseInt(size[0]);
+            canvas.height = parseInt(size[1]);
+            
+            // Scale canvas to match video display size
+            const videoRect = video.getBoundingClientRect();
+            canvas.style.width = videoRect.width + 'px';
+            canvas.style.height = videoRect.height + 'px';
+            
+            drawPose();
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const videoRect = video.getBoundingClientRect();
+            canvas.style.width = videoRect.width + 'px';
+            canvas.style.height = videoRect.height + 'px';
+        });
+        
+        // Start
+        init();
+    </script>
+</body>
+</html>
