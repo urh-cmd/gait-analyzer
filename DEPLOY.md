@@ -69,7 +69,7 @@ Der erste Build kann **5–15 Minuten** dauern (ultralytics, opencv). YOLOv8 wir
 |-------|-------|
 | `Home.py` | Einstiegspunkt der App |
 | `requirements.txt` | Python-Abhängigkeiten |
-| `packages.txt` | Linux-Systempakete (OpenCV) |
+| *(kein packages.txt)* | opencv-python-headless benötigt keine Systempakete |
 | `pages/` | Multipage-Seiten |
 | `app/`, `src/` | App-Logik |
 
@@ -87,7 +87,7 @@ Der erste Build kann **5–15 Minuten** dauern (ultralytics, opencv). YOLOv8 wir
 ## Fehlerbehebung
 
 ### Build schlägt fehl
-- `packages.txt` prüfen (libgl1-mesa-glx für OpenCV)
+- `opencv-python-headless` wird verwendet (keine apt-Pakete nötig)
 - `requirements.txt` – Versionen evtl. locken
 
 ### "ModuleNotFoundError"
