@@ -1,10 +1,12 @@
-# 🎬 Gait Analyzer
+# 🏃 Haile
 
 **KI-basierte Ganganalyse für Physiotherapie-Praxen**
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io)
 
 > **Deployment:** Siehe [DEPLOY.md](DEPLOY.md) für die Veröffentlichung auf Streamlit Community Cloud.
+
+Named after **Haile Gebrselassie** — Ethiopian long-distance running legend and world record holder.
 
 ## 🚀 Features
 
@@ -16,10 +18,11 @@
 
 ## 📖 Nutzung
 
-1. Video hochladen (MP4, AVI, MOV)
-2. YOLOv8-pose verarbeitet automatisch
-3. Analyse-Dashboard öffnet sich
-4. PDF-Report erstellen & herunterladen
+1. Anamnese erfassen
+2. Video hochladen (MP4, AVI, MOV)
+3. YOLOv8-pose verarbeitet automatisch
+4. Analyse-Dashboard öffnet sich
+5. PDF-Report erstellen & herunterladen
 
 ## 🛠️ Tech Stack
 
@@ -44,4 +47,4 @@ Alle Videodaten werden **lokal verarbeitet** und nicht an externe Server gesende
 
 ---
 
-**Made with ❤️ for better patient care**
+**Haile** — Precision in movement analysis. Made with ❤️ for better patient care.

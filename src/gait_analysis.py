@@ -1,6 +1,6 @@
 """
-Gait Analyzer - Professional Analysis Engine
-=============================================
+Haile - Professional Analysis Engine
+=====================================
 Calculates clinical gait metrics from pose keypoints.
 """
 
@@ -18,15 +18,15 @@ class GaitMetrics:
     step_time_left: float = 0.0  # seconds
     step_time_right: float = 0.0
     
-    # Phase percentages (Week 11-12)
-    double_support_percent: float = 0.0  # % of gait cycle where both feet on ground
+    # Phase percentages
+    double_support_percent: float = 0.0   # % of gait cycle where both feet on ground
     single_support_percent: float = 0.0   # % where one foot on ground
     swing_phase_left: float = 0.0         # % for left leg
     swing_phase_right: float = 0.0        # % for right leg
     stance_phase_left: float = 0.0        # % for left leg
     stance_phase_right: float = 0.0       # % for right leg
     
-    # Swing phase symmetry (Week 11-12)
+    # Swing phase symmetry
     swing_symmetry_index: float = 0.0     # Difference between left/right swing
     stance_symmetry_index: float = 0.0    # Difference between left/right stance
     
@@ -55,7 +55,7 @@ class GaitMetrics:
 def calculate_gait_phases(keypoints_data: List[Dict], left_strikes: List[int], 
                          right_strikes: List[int], fps: float = 30.0) -> Dict[str, float]:
     """
-    Calculate gait phase percentages (Week 11-12).
+    Calculate gait phase percentages.
     
     Returns:
         Dictionary with phase percentages and symmetry indices
@@ -320,32 +320,42 @@ def calculate_joint_angles(keypoints_data: List[Dict]) -> Dict[str, List[float]]
 def calculate_angle(p1: List[float], p2: List[float], p3: List[float]) -> float:
     """
     Calculate interior angle at p2 formed by p1-p2-p3 in degrees.
+    Correctly handles image coordinates (Y increases downward).
+    For knee: p1=hip, p2=knee, p3=ankle
     Returns angle between 0-180 degrees.
     """
     try:
-        a = np.array([float(p1[0]), float(p1[1])])
-        b = np.array([float(p2[0]), float(p2[1])])
-        c = np.array([float(p3[0]), float(p3[1])])
+        # Convert to numpy arrays (X, Y)
+        hip = np.array([float(p1[0]), float(p1[1])])
+        knee = np.array([float(p2[0]), float(p2[1])])
+        ankle = np.array([float(p3[0]), float(p3[1])])
         
-        # Vectors from p2 to p1 and p2 to p3
-        v1 = a - b
-        v2 = c - b
+        # Vector from knee to hip (thigh direction)
+        thigh = hip - knee
+        # Vector from knee to ankle (shin direction)
+        shin = ankle - knee
         
         # Check for zero vectors
-        norm_v1 = np.linalg.norm(v1)
-        norm_v2 = np.linalg.norm(v2)
+        norm_thigh = np.linalg.norm(thigh)
+        norm_shin = np.linalg.norm(shin)
         
-        if norm_v1 < 1e-10 or norm_v2 < 1e-10:
+        if norm_thigh < 1e-10 or norm_shin < 1e-10:
             return 0.0
         
-        # Calculate angle
-        cos_angle = np.dot(v1, v2) / (norm_v1 * norm_v2)
+        # Calculate angle between thigh and shin
+        cos_angle = np.dot(thigh, shin) / (norm_thigh * norm_shin)
         cos_angle = np.clip(cos_angle, -1.0, 1.0)
         
         angle_rad = np.arccos(cos_angle)
         angle_deg = np.degrees(angle_rad)
         
-        return angle_deg
+        # The angle should be the supplement for knee flexion
+        # When leg is straight: angle ≈ 180°
+        # When knee is bent: angle < 180°
+        # For knee flexion angle: 180 - calculated_angle
+        knee_flexion = 180.0 - angle_deg
+        
+        return knee_flexion
     except Exception:
         return 0.0
 
@@ -388,7 +398,7 @@ def analyze_gait(keypoints_data: List[Dict], fps: float = 30.0,
         right_intervals = np.diff(right_strikes) / fps
         metrics.step_time_right = np.mean(right_intervals) if len(right_intervals) > 0 else 0
     
-    # ===== Week 11-12: Advanced Phase Analysis =====
+    # Advanced Phase Analysis
     phases = calculate_gait_phases(keypoints_data, left_strikes, right_strikes, fps)
     
     metrics.double_support_percent = phases['double_support']

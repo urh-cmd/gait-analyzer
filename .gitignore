@@ -13,6 +13,7 @@ dist/
 
 # Data (nicht ins Git!)
 data/raw/*.mp4
+youtube_segment*.mov
 data/raw/*.avi
 data/raw/*.mov
 data/processed/*.json

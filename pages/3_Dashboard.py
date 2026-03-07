@@ -1,7 +1,7 @@
 """
-Gait Analyzer - Dashboard
-=========================
-Keypoint-Analyse und Statistiken. Kein Video-Player – nur die Analyse-Ergebnisse.
+Haile - Dashboard
+==================
+Keypoint-Analyse und Statistiken.
 """
 
 import streamlit as st
@@ -9,6 +9,9 @@ import json
 import numpy as np
 from pathlib import Path
 from datetime import datetime
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from app.components.linear_ui import render_linear_css, PLOTLY_LAYOUT
 
 try:
     import plotly.graph_objects as go
@@ -17,7 +20,6 @@ try:
 except ImportError:
     PLOTLY_AVAILABLE = False
 
-# COCO Keypoint-Namen
 KEYPOINT_NAMES = [
     "Nase", "L Auge", "R Auge", "L Ohr", "R Ohr",
     "L Schulter", "R Schulter", "L Ellbogen", "R Ellbogen",
@@ -25,14 +27,23 @@ KEYPOINT_NAMES = [
     "L Knie", "R Knie", "L Knöchel", "R Knöchel",
 ]
 
-st.set_page_config(page_title="Gait Analyzer - Dashboard", page_icon="📊", layout="wide")
-st.title("📊 Gait Analyzer – Keypoint-Analyse & Statistiken")
+st.set_page_config(page_title="Haile - Dashboard", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
+render_linear_css()
+
+st.markdown('<h3 class="text-xl font-semibold text-white mb-1">Keypoint-Analyse & Statistiken</h3>', unsafe_allow_html=True)
 st.markdown("---")
 
 if "processed_file" not in st.session_state:
-    st.warning("⚠️ Keine Daten. Bitte zuerst Video verarbeiten!")
-    if st.button("⬅️ Zum Upload"):
-        st.switch_page("Home.py")
+    st.markdown(
+        """
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4 text-amber-200">
+            Keine Daten. Bitte zuerst Video verarbeiten.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Zum Upload", use_container_width=True):
+        st.switch_page("pages/1_Upload.py")
     st.stop()
 
 # Load data
@@ -60,22 +71,29 @@ with col5:
     st.metric("Ø Keypoints/Frame", f"{avg_kp:.1f}")
 
 if metadata.get("notes"):
-    st.info(f"📝 **Notizen:** {metadata['notes']}")
+    st.markdown(
+        f"""
+        <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-4 mb-4 border-l-4 border-l-sky-500">
+            <p class="text-slate-300 text-sm"><span class="text-slate-500">Notizen:</span> {metadata['notes']}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 
 # Tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📈 Keypoint-Verlauf",
-    "🦴 Pose pro Frame",
-    "📊 Statistiken",
-    "📋 Analyse",
-    "💾 Export",
+    "Keypoint-Verlauf",
+    "Pose pro Frame",
+    "Statistiken",
+    "Analyse",
+    "Export",
 ])
 
 # Tab 1: Keypoint-Analyse über Zeit
 with tab1:
-    st.markdown("### 📈 Keypoints über Zeit")
+    st.markdown('<p class="text-lg font-semibold text-slate-300 mb-4">Keypoints über Zeit</p>', unsafe_allow_html=True)
 
     if not PLOTLY_AVAILABLE:
         st.error("Plotly fehlt: `pip install plotly`")
@@ -111,24 +129,24 @@ with tab1:
         col1, col2 = st.columns(2)
         with col1:
             fig_x = go.Figure()
-            fig_x.add_trace(go.Scatter(x=timestamps, y=x_vals, mode="lines", name="X", line=dict(color="#1f77b4", width=2)))
-            fig_x.update_layout(title="X-Koordinate", xaxis_title="Zeit (s)", yaxis_title="Pixel", height=350)
+            fig_x.add_trace(go.Scatter(x=timestamps, y=x_vals, mode="lines", name="X", line=dict(color="#0EA5E9", width=2)))
+            fig_x.update_layout(**PLOTLY_LAYOUT, title="X-Koordinate", xaxis_title="Zeit (s)", yaxis_title="Pixel", height=350)
             st.plotly_chart(fig_x, use_container_width=True)
         with col2:
             fig_y = go.Figure()
-            fig_y.add_trace(go.Scatter(x=timestamps, y=y_vals, mode="lines", name="Y", line=dict(color="#d62728", width=2)))
-            fig_y.update_layout(title="Y-Koordinate", xaxis_title="Zeit (s)", yaxis_title="Pixel", height=350)
+            fig_y.add_trace(go.Scatter(x=timestamps, y=y_vals, mode="lines", name="Y", line=dict(color="#38BDF8", width=2)))
+            fig_y.update_layout(**PLOTLY_LAYOUT, title="Y-Koordinate", xaxis_title="Zeit (s)", yaxis_title="Pixel", height=350)
             st.plotly_chart(fig_y, use_container_width=True)
 
         if any(c is not None for c in conf_vals):
             fig_conf = go.Figure()
-            fig_conf.add_trace(go.Scatter(x=timestamps, y=conf_vals, mode="lines", name="Confidence", line=dict(color="#2ca02c", width=2)))
-            fig_conf.update_layout(title="Confidence über Zeit", xaxis_title="Zeit (s)", yaxis_title="Confidence", height=300)
+            fig_conf.add_trace(go.Scatter(x=timestamps, y=conf_vals, mode="lines", name="Confidence", line=dict(color="#7DD3FC", width=2)))
+            fig_conf.update_layout(**PLOTLY_LAYOUT, title="Confidence über Zeit", xaxis_title="Zeit (s)", yaxis_title="Confidence", height=300)
             st.plotly_chart(fig_conf, use_container_width=True)
 
 # Tab 2: Pose als abspielbares Video
 with tab2:
-    st.markdown("### 🦴 Video mit Pose-Overlay")
+    st.markdown('<p class="text-lg font-semibold text-slate-300 mb-4">Video mit Pose-Overlay</p>', unsafe_allow_html=True)
 
     source_video = metadata.get("source_video", "")
     video_path = Path("data/raw") / source_video
@@ -136,7 +154,7 @@ with tab2:
         video_path = Path.cwd() / "data/raw" / source_video
 
     if not video_path.exists():
-        st.info("Video nicht gefunden – zeige Keypoint-Positionen als Diagramm.")
+        st.markdown('<div class="bg-slate-800/50 border border-slate-700 rounded-xl p-4 mb-4 text-slate-400 text-sm">Video nicht gefunden – zeige Keypoint-Positionen als Diagramm.</div>', unsafe_allow_html=True)
         frame_idx = st.slider("Frame", 0, max(0, total_frames - 1), len(keypoints_data) // 2)
         if frame_idx < len(keypoints_data):
             kps = keypoints_data[frame_idx].get("keypoints", [])
@@ -146,9 +164,10 @@ with tab2:
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
                     x=df["X"], y=df["Y"], mode="markers+text", text=df["Keypoint"],
-                    textposition="top center", marker=dict(size=10, color="blue")
+                    textposition="top center", marker=dict(size=10, color="#0EA5E9")
                 ))
                 fig.update_layout(
+                    **PLOTLY_LAYOUT,
                     title=f"Frame {frame_idx} – Keypoints",
                     xaxis_title="X", yaxis_title="Y",
                     yaxis=dict(autorange="reversed"),
@@ -211,15 +230,15 @@ with tab2:
             with open(abs_path, "rb") as f:
                 video_bytes = f.read()
             st.video(video_bytes, format="video/mp4")
-            st.download_button("📥 Video herunterladen", video_bytes, pose_video_path.name, "video/mp4")
+            st.download_button("Download Video", video_bytes, pose_video_path.name, "video/mp4")
             st.caption(f"Video mit Pose-Skeleton (Confidence: {min_conf})")
             
             # Option to re-render
-            if st.button("🔄 Neu rendern (bei Problemen)", key="rerender_btn"):
+            if st.button("Neu rendern", key="rerender_btn"):
                 pose_video_path.unlink(missing_ok=True)
                 st.rerun()
         else:
-            if st.button("▶️ Video mit Pose-Overlay erstellen", type="primary"):
+            if st.button("Video mit Pose-Overlay erstellen", type="primary"):
                 with st.spinner("Rendere Video …"):
                     result = create_pose_overlay_video(
                         str(video_path), keypoints_data, str(pose_video_path), min_conf
@@ -229,11 +248,11 @@ with tab2:
                     st.rerun()
                 else:
                     st.error("Video konnte nicht erstellt werden.")
-            st.info("Klicke auf **Video mit Pose-Overlay erstellen**, um ein abspielbares Video zu generieren.")
+            st.markdown('<p class="text-slate-500 text-sm">Klicke auf <strong>Video mit Pose-Overlay erstellen</strong>, um ein abspielbares Video zu generieren.</p>', unsafe_allow_html=True)
 
 # Tab 3: Statistiken
 with tab3:
-    st.markdown("### 📊 Statistiken")
+    st.markdown('<p class="text-lg font-semibold text-slate-300 mb-4">Statistiken</p>', unsafe_allow_html=True)
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
@@ -248,16 +267,17 @@ with tab3:
     with col5:
         st.metric("Max Keypoints", max(kp_per_frame) if kp_per_frame else 0)
 
-    st.markdown("#### Keypoint-Erkennungsrate pro Frame")
+    st.markdown('<p class="text-base font-medium text-slate-400 mb-3">Keypoint-Erkennungsrate pro Frame</p>', unsafe_allow_html=True)
     if PLOTLY_AVAILABLE and keypoints_data:
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=list(range(total_frames)),
             y=kp_per_frame,
             mode="lines",
-            line=dict(color="#17becf", width=2),
+            line=dict(color="#0EA5E9", width=2),
         ))
         fig.update_layout(
+            **PLOTLY_LAYOUT,
             xaxis_title="Frame",
             yaxis_title="Anzahl Keypoints",
             height=350,
@@ -272,7 +292,7 @@ with tab3:
                 if len(kp) >= 3:
                     all_conf.append(kp[2])
         if all_conf:
-            st.markdown("#### Confidence-Verteilung")
+            st.markdown('<p class="text-base font-medium text-slate-400 mb-3">Confidence-Verteilung</p>', unsafe_allow_html=True)
             c1, c2, c3 = st.columns(3)
             with c1:
                 st.metric("Ø Confidence", f"{np.mean(all_conf):.2f}")
@@ -281,17 +301,10 @@ with tab3:
             with c3:
                 st.metric("Max", f"{np.max(all_conf):.2f}")
 
-# Tab 4: Export
-with tab4:
-    st.markdown("### 💾 Export")
-    pid = metadata.get("patient_id", "data").replace("/", "_").replace("\\", "_")
-    json_str = json.dumps(data, indent=2)
-    st.download_button("📥 JSON herunterladen", json_str, f"gait_{pid}.json", "application/json")
-
 # Tab 4: Analyse
 with tab4:
-    st.markdown("### 📋 Ganganalyse")
-    st.info("Automatische Berechnung von Gait-Metriken")
+    st.markdown('<p class="text-lg font-semibold text-slate-300 mb-4">Ganganalyse</p>', unsafe_allow_html=True)
+    st.markdown('<div class="bg-slate-800/50 border border-slate-700 rounded-xl p-4 mb-4 text-slate-400 text-sm">Automatische Berechnung von Gait-Metriken</div>', unsafe_allow_html=True)
     
     # Import analysis engine
     try:
@@ -300,36 +313,20 @@ with tab4:
         
         # Calculate metrics
         with st.spinner("Analysiere Gangmuster..."):
-            # Debug info
-            st.write(f"Debug: {len(keypoints_data)} Frames, {fps} FPS, {len(keypoints_data[0].get('keypoints', []))} Keypoints")
-            
             metrics = analyze_gait(
                 keypoints_data, 
                 fps=fps,
                 duration_seconds=duration,
                 pixel_to_cm=1.0  # TODO: Calibration
             )
-            
-            # Validation warnings
-            if metrics.step_count < 2:
-                st.warning("⚠️ Weniger als 2 Schritte erkannt. Mögliche Ursachen:\n"
-                          "- Video zu kurz\n"
-                          "- Person steht still\n"
-                          "- Keypoint-Qualität zu niedrig (Confidence erhöhen?)")
-            
-            if metrics.cadence < 10:
-                st.warning("⚠️ Sehr niedrige Cadenz. Normal: 100-120 Schritte/Min.")
-            
-            if metrics.max_knee_flexion > 160:
-                st.warning("⚠️ Unrealistische Knieflexion (>160°). Winkelberechnung prüfen.")
         
         # Display summary
-        st.markdown("#### 📝 Zusammenfassung")
+        st.markdown('<p class="text-base font-medium text-slate-400 mb-3">Zusammenfassung</p>', unsafe_allow_html=True)
         summary = generate_clinical_summary(metrics)
         st.markdown(summary)
         
         # Key metrics in columns
-        st.markdown("#### 📊 Wichtige Kennzahlen")
+        st.markdown('<p class="text-base font-medium text-slate-400 mb-3">Wichtige Kennzahlen</p>', unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.metric("Schritte", metrics.step_count)
@@ -340,94 +337,51 @@ with tab4:
         with c4:
             st.metric("L/R Verhältnis", f"{metrics.left_right_ratio:.2f}")
         
-        # Asymmetry warnings
-        asymmetry_col1, asymmetry_col2 = st.columns(2)
-        with asymmetry_col1:
-            if metrics.has_asymmetry:
-                st.error("⚠️ **Längen-Asymmetrie!** >10% Unterschied")
-            else:
-                st.success("✅ Symmetrische Schrittlängen")
-        
-        with asymmetry_col2:
-            if metrics.has_phase_asymmetry:
-                st.error("⚠️ **Phasen-Asymmetrie!** Schwung/Stance ungleich")
-            else:
-                st.success("✅ Symmetrische Phasen")
-        
-        # ===== Week 11-12: Extended Phase Analysis =====
-        st.markdown("---")
-        st.markdown("#### ⚡ Erweiterte Phasen-Analyse (Week 11-12)")
-        
-        phase_cols = st.columns(4)
-        with phase_cols[0]:
-            st.metric("Doppelstandphase", f"{metrics.double_support_percent:.1f}%", 
-                     help="Zeit mit beiden Füßen am Boden")
-        with phase_cols[1]:
-            st.metric("Einfachstandphase", f"{metrics.single_support_percent:.1f}%",
-                     help="Zeit mit einem Fuß am Boden")
-        with phase_cols[2]:
-            st.metric("Swing-Symmetrie", f"{metrics.swing_symmetry_index:.1f}%",
-                     help="Unterschied Links/Rechts Schwungphase")
-        with phase_cols[3]:
-            st.metric("Stance-Symmetrie", f"{metrics.stance_symmetry_index:.1f}%",
-                     help="Unterschied Links/Rechts Standphase")
-        
-        # Phase breakdown
-        st.markdown("**Phasen-Aufschlüsselung pro Bein:**")
-        
-        phase_table = {
-            "Phase": ["Schwungphase (Swing)", "Standphase (Stance)"],
-            "Links": [f"{metrics.swing_phase_left:.1f}%", f"{metrics.stance_phase_left:.1f}%"],
-            "Rechts": [f"{metrics.swing_phase_right:.1f}%", f"{metrics.stance_phase_right:.1f}%"],
-            "Normalwert": ["~40%", "~60%"]
-        }
-        
-        import pandas as pd
-        st.dataframe(pd.DataFrame(phase_table), use_container_width=True, hide_index=True)
-        
-        # Clinical interpretation
-        st.markdown("#### 💡 Klinische Bewertung")
-        
-        interpretations = []
-        
-        # Double support
-        if 10 <= metrics.double_support_percent <= 20:
-            interpretations.append("✅ Doppelstandphase im Normalbereich (10-20%)")
-        elif metrics.double_support_percent < 10:
-            interpretations.append("⚠️ Kurze Doppelstandphase - Instabilität möglich")
+        if metrics.has_asymmetry:
+            st.markdown(
+                f'<div class="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4 text-red-300 text-sm">Asymmetrie erkannt! Ein Symmetrie-Index &gt;10% deutet auf ein auffälliges Gangbild hin.</div>',
+                unsafe_allow_html=True,
+            )
         else:
-            interpretations.append("⚠️ Lange Doppelstandphase - Vorsichtiger Gang")
-        
-        # Swing symmetry
-        if metrics.swing_symmetry_index < 10:
-            interpretations.append("✅ Ausgewogene Schwungphasen")
-        else:
-            interpretations.append(f"⚠️ Ungleiche Schwungphasen ({metrics.swing_symmetry_index:.1f}% Diff.)")
-        
-        for interp in interpretations:
-            st.write(interp)
+            st.markdown(
+                '<div class="bg-sky-500/10 border border-sky-500/30 rounded-xl p-4 mb-4 text-sky-300 text-sm">Symmetrischer Gang – Keine signifikante Asymmetrie festgestellt.</div>',
+                unsafe_allow_html=True,
+            )
+        if metrics.has_phase_asymmetry:
+            st.markdown(
+                f'<div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4 text-amber-300 text-sm">Phasen-Asymmetrie: Swing {metrics.swing_symmetry_index:.1f}%, Stance {metrics.stance_symmetry_index:.1f}%</div>',
+                unsafe_allow_html=True,
+            )
         
         # Detailed metrics table
-        st.markdown("---")
-        st.markdown("#### 📈 Weitere Metriken")
+        st.markdown('<p class="text-base font-medium text-slate-400 mb-3">Detaillierte Metriken</p>', unsafe_allow_html=True)
         
         col_left, col_right = st.columns(2)
         with col_left:
             st.markdown("**Zeitliche Parameter:**")
             st.write(f"• Schrittzeit links: {metrics.step_time_left:.2f}s")
             st.write(f"• Schrittzeit rechts: {metrics.step_time_right:.2f}s")
+            st.write(f"• Swing Phase links: {metrics.swing_phase_left:.1f}%")
+            st.write(f"• Swing Phase rechts: {metrics.swing_phase_right:.1f}%")
+            st.write(f"• Stance Phase links: {metrics.stance_phase_left:.1f}%")
+            st.write(f"• Stance Phase rechts: {metrics.stance_phase_right:.1f}%")
+            st.write(f"• Double Support: {metrics.double_support_percent:.1f}%")
+            st.write(f"• Single Support: {metrics.single_support_percent:.1f}%")
         
         with col_right:
             st.markdown("**Räumliche Parameter:**")
             st.write(f"• Schrittlänge links: {metrics.step_length_left:.1f} cm")
             st.write(f"• Schrittlänge rechts: {metrics.step_length_right:.1f} cm")
+            st.write(f"• Schrittlänge (Ø): {metrics.stride_length:.1f} cm")
             st.write(f"• Maximale Knieflexion: {metrics.max_knee_flexion:.1f}°")
+            if metrics.hip_range_of_motion > 0:
+                st.write(f"• Hüft-ROM: {metrics.hip_range_of_motion:.1f}°")
         
         # PDF Report Generation
         st.markdown("---")
-        st.markdown("#### 📄 PDF-Report erstellen")
+        st.markdown('<p class="text-base font-medium text-slate-400 mb-3">PDF-Report erstellen</p>', unsafe_allow_html=True)
         
-        if st.button("📄 Professionellen Bericht erstellen", type="primary"):
+        if st.button("Bericht erstellen", type="primary"):
             with st.spinner("Generiere PDF-Bericht..."):
                 try:
                     output_dir = Path("data/processed")
@@ -454,7 +408,7 @@ with tab4:
                         pdf_bytes = f.read()
                     
                     st.download_button(
-                        "📥 PDF herunterladen",
+                        "Download",
                         pdf_bytes,
                         report_path.name,
                         "application/pdf"
@@ -467,18 +421,26 @@ with tab4:
         
     except Exception as e:
         st.error(f"Fehler bei der Analyse: {e}")
-        st.info("Stelle sicher, dass alle Abhängigkeiten installiert sind.")
+        st.markdown('<p class="text-slate-500 text-sm">Stelle sicher, dass alle Abhängigkeiten installiert sind.</p>', unsafe_allow_html=True)
+
+# Tab 5: Export
+with tab5:
+    st.markdown('<p class="text-lg font-semibold text-slate-300 mb-4">Export</p>', unsafe_allow_html=True)
+    pid = metadata.get("patient_id", "data").replace("/", "_").replace("\\", "_")
+    json_str = json.dumps(data, indent=2)
+    st.download_button("Download JSON", json_str, f"gait_{pid}.json", "application/json")
 
 # Navigation
 st.markdown("---")
-if st.button("🔄 Neue Analyse", type="primary"):
-    # Lösche ALLE session state variables
-    keys_to_delete = [k for k in st.session_state.keys()]
-    for k in keys_to_delete:
-        del st.session_state[k]
-    # Clear any cached data
-    st.cache_data.clear()
-    st.cache_resource.clear()
-    st.switch_page("Home.py")
-if st.button("⬅️ Zurück zur Verarbeitung"):
-    st.switch_page("pages/1_⚙️_Verarbeitung.py")
+col_nav1, col_nav2 = st.columns(2)
+with col_nav1:
+    if st.button("Neue Analyse", type="primary", use_container_width=True):
+        keys_to_delete = [k for k in st.session_state.keys()]
+        for k in keys_to_delete:
+            del st.session_state[k]
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.switch_page("Home.py")
+with col_nav2:
+    if st.button("Zurück zur Verarbeitung", use_container_width=True):
+        st.switch_page("pages/2_Processing.py")

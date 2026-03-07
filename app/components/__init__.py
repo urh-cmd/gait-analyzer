@@ -1,1 +1,1 @@
-# Gait Analyzer - Components Package
+# Components package

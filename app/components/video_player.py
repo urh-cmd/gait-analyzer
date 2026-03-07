@@ -1,6 +1,6 @@
 """
-Gait Analyzer - Components: Video Player with Pose Overlay
-===========================================================
+Haile - Components: Video Player with Pose Overlay
+===================================================
 Renders video frames with YOLOv8-pose keypoints overlaid.
 """
 
