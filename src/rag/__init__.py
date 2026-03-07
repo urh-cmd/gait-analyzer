@@ -1,7 +1,7 @@
 # Haile RAG Engine
 from .engine import RAGEngine
 from .knowledge import ClinicalKnowledgeBase
-from .providers import OpenAIProvider, QwenProvider, AnthropicProvider
+from .providers import OpenAIProvider, QwenProvider, AnthropicProvider, BailianProvider, PerplexityProvider, OllamaProvider, NvidiaProvider
 
 __all__ = [
     'RAGEngine',
@@ -9,4 +9,8 @@ __all__ = [
     'OpenAIProvider',
     'QwenProvider',
     'AnthropicProvider',
+    'BailianProvider',
+    'PerplexityProvider',
+    'OllamaProvider',
+    'NvidiaProvider',
 ]

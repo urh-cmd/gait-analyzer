@@ -158,6 +158,80 @@ class QwenProvider(LLMProvider):
             raise Exception(f"Qwen API error: {response.code} - {response.message}")
 
 
+class BailianProvider(LLMProvider):
+    """Alibaba Cloud Bailian API provider (OpenAI-compatible, works in Europe)."""
+    
+    # Model mapping from Bailian to Qwen names
+    MODEL_MAPPING = {
+        "qwen-max": "qwen-max-2025-01-25",
+        "qwen-plus": "qwen-plus",
+        "qwen-turbo": "qwen-turbo",
+        "qwen-coder-plus": "qwen-coder-plus",
+    }
+    
+    def __init__(self, api_key: Optional[str] = None, model: str = "qwen-max"):
+        self.model = self.MODEL_MAPPING.get(model, model)
+        super().__init__(api_key)
+        self._client = None
+    
+    def _get_default_api_key(self) -> Optional[str]:
+        return os.environ.get("BAILIAN_API_KEY") or os.environ.get("ALIBABA_API_KEY")
+    
+    def _get_client(self):
+        if self._client is None:
+            try:
+                from openai import OpenAI
+                self._client = OpenAI(
+                    api_key=self.api_key,
+                    base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+                )
+            except ImportError:
+                raise ImportError("Please install openai: pip install openai")
+        return self._client
+    
+    def generate(self, prompt: str, system: str = "", **kwargs) -> str:
+        client = self._get_client()
+        
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            **kwargs
+        )
+        
+        return response.choices[0].message.content
+    
+    def generate_structured(self, prompt: str, schema: Dict, system: str = "") -> Dict:
+        client = self._get_client()
+        
+        system_prompt = system + "\n\nAntworte NUR mit validem JSON im folgenden Format:\n" + json.dumps(schema, indent=2)
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt + "\n\nAntworte ausschließlich mit JSON, ohne zusätzlichen Text."}
+        ]
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            response_format={"type": "json_object"}
+        )
+        
+        content = response.choices[0].message.content
+        # Clean up potential markdown code blocks
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
+        
+        return json.loads(content.strip())
+
+
 class AnthropicProvider(LLMProvider):
     """Anthropic Claude provider."""
     
@@ -217,14 +291,216 @@ class AnthropicProvider(LLMProvider):
         return json.loads(content.strip())
 
 
+class PerplexityProvider(LLMProvider):
+    """Perplexity AI provider (uses OpenAI-compatible API)."""
+    
+    def __init__(self, api_key: Optional[str] = None, model: str = "llama-3.1-sonar-small-128k-online"):
+        self.model = model
+        super().__init__(api_key)
+        self._client = None
+    
+    def _get_default_api_key(self) -> Optional[str]:
+        return os.environ.get("PERPLEXITY_API_KEY")
+    
+    def _get_client(self):
+        if self._client is None:
+            try:
+                from openai import OpenAI
+                self._client = OpenAI(
+                    api_key=self.api_key,
+                    base_url="https://api.perplexity.ai"
+                )
+            except ImportError:
+                raise ImportError("Please install openai: pip install openai")
+        return self._client
+    
+    def generate(self, prompt: str, system: str = "", **kwargs) -> str:
+        client = self._get_client()
+        
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            **kwargs
+        )
+        
+        return response.choices[0].message.content
+    
+    def generate_structured(self, prompt: str, schema: Dict, system: str = "") -> Dict:
+        client = self._get_client()
+        
+        system_prompt = system + "\n\nAntworte NUR mit validem JSON im folgenden Format:\n" + json.dumps(schema, indent=2)
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt + "\n\nAntworte ausschließlich mit JSON, ohne zusätzlichen Text."}
+        ]
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages
+        )
+        
+        content = response.choices[0].message.content
+        # Clean up potential markdown code blocks
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
+        
+        return json.loads(content.strip())
+
+
+class OllamaProvider(LLMProvider):
+    """Ollama local LLM provider (no API key needed)."""
+    
+    def __init__(self, api_key: Optional[str] = None, model: str = "llama3.1", base_url: str = "http://localhost:11434"):
+        self.model = model
+        self.base_url = base_url
+        super().__init__(api_key)
+    
+    def _get_default_api_key(self) -> Optional[str]:
+        return None  # No API key needed for Ollama
+    
+    def _get_client(self):
+        try:
+            import openai
+            return openai.OpenAI(
+                base_url=f"{self.base_url}/v1",
+                api_key="ollama"  # Required but ignored by Ollama
+            )
+        except ImportError:
+            raise ImportError("Please install openai: pip install openai")
+    
+    def generate(self, prompt: str, system: str = "", **kwargs) -> str:
+        client = self._get_client()
+        
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            **kwargs
+        )
+        
+        return response.choices[0].message.content
+    
+    def generate_structured(self, prompt: str, schema: Dict, system: str = "") -> Dict:
+        client = self._get_client()
+        
+        system_prompt = system + "\n\nAntworte NUR mit validem JSON im folgenden Format:\n" + json.dumps(schema, indent=2)
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt + "\n\nAntworte ausschließlich mit JSON, ohne zusätzlichen Text."}
+        ]
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages
+        )
+        
+        content = response.choices[0].message.content
+        # Clean up potential markdown code blocks
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
+        
+        return json.loads(content.strip())
+
+
+class NvidiaProvider(LLMProvider):
+    """NVIDIA NIM API provider (free tier available for Kimi K2.5)."""
+    
+    def __init__(self, api_key: Optional[str] = None, model: str = "moonshotai/kimi-k2.5"):
+        self.model = model
+        super().__init__(api_key)
+        self._client = None
+    
+    def _get_default_api_key(self) -> Optional[str]:
+        return os.environ.get("NVIDIA_API_KEY")
+    
+    def _get_client(self):
+        if self._client is None:
+            try:
+                from openai import OpenAI
+                self._client = OpenAI(
+                    api_key=self.api_key,
+                    base_url="https://integrate.api.nvidia.com/v1"
+                )
+            except ImportError:
+                raise ImportError("Please install openai: pip install openai")
+        return self._client
+    
+    def generate(self, prompt: str, system: str = "", **kwargs) -> str:
+        client = self._get_client()
+        
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.3,
+            max_tokens=4096,
+            **kwargs
+        )
+        
+        return response.choices[0].message.content
+    
+    def generate_structured(self, prompt: str, schema: Dict, system: str = "") -> Dict:
+        client = self._get_client()
+        
+        system_prompt = system + "\n\nAntworte NUR mit validem JSON im folgenden Format:\n" + json.dumps(schema, indent=2)
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt + "\n\nAntworte ausschließlich mit JSON, ohne zusätzlichen Text."}
+        ]
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.3,
+            max_tokens=4096,
+            response_format={"type": "json_object"}
+        )
+        
+        content = response.choices[0].message.content
+        # Clean up potential markdown code blocks
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
+        
+        return json.loads(content.strip())
+
+
 def get_provider(name: str, api_key: Optional[str] = None) -> LLMProvider:
     """Factory function to get provider by name."""
     providers = {
         "openai": OpenAIProvider,
         "qwen": QwenProvider,
         "alibaba": QwenProvider,
+        "bailian": BailianProvider,
         "anthropic": AnthropicProvider,
         "claude": AnthropicProvider,
+        "perplexity": PerplexityProvider,
+        "ollama": OllamaProvider,
+        "nvidia": NvidiaProvider,
     }
     
     if name.lower() not in providers:

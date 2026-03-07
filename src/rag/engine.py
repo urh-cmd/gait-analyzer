@@ -11,13 +11,13 @@ from pathlib import Path
 import json
 
 from .knowledge import ClinicalKnowledgeBase, ClinicalDocument
-from .providers import LLMProvider, get_provider, OpenAIProvider, QwenProvider, AnthropicProvider
+from .providers import LLMProvider, get_provider, OpenAIProvider, QwenProvider, AnthropicProvider, BailianProvider, PerplexityProvider, OllamaProvider, NvidiaProvider
 
 
 @dataclass
 class RAGConfig:
     """Configuration for RAG engine."""
-    provider: str = "openai"  # openai, qwen, anthropic
+    provider: str = "openai"  # openai, bailian, perplexity, qwen, anthropic
     model: Optional[str] = None
     api_key: Optional[str] = None
     include_references: bool = True
@@ -63,6 +63,10 @@ class RAGEngine:
                 # Default models per provider
                 default_models = {
                     "openai": "gpt-4o-mini",
+                    "nvidia": "moonshotai/kimi-k2.5",
+                    "ollama": "llama3.1",
+                    "bailian": "qwen-max",
+                    "perplexity": "llama-3.1-sonar-small-128k-online",
                     "qwen": "qwen-max",
                     "anthropic": "claude-3-haiku-20240307",
                 }

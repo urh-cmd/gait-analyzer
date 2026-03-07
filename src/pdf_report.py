@@ -22,7 +22,8 @@ from io import BytesIO
 
 
 def create_gait_report(output_path: str, patient_data: dict, metrics, 
-                       keypoints_data: list, plots: dict = None) -> str:
+                       keypoints_data: list, plots: dict = None,
+                       ai_report: str = None, anamnese_data: dict = None) -> str:
     """
     Create a professional PDF gait analysis report.
     
@@ -255,6 +256,70 @@ def create_gait_report(output_path: str, patient_data: dict, metrics,
             normal_style))
     
     elements.append(PageBreak())
+    
+    # ===== AI REPORT =====
+    if ai_report:
+        elements.append(PageBreak())
+        elements.append(Paragraph("🤖 KI-Bericht", heading_style))
+        
+        # Clean and format AI report text for PDF
+        import re
+        
+        # Simple approach: convert markdown to plain text first
+        ai_text = ai_report
+        
+        # Remove ALL HTML-like tags first
+        ai_text = re.sub(r'<[^>]+>', '', ai_text)
+        
+        # Remove markdown bold and italic
+        ai_text = re.sub(r'\*\*(.*?)\*\*', r'\1', ai_text)
+        ai_text = re.sub(r'\*(.*?)\*', r'\1', ai_text)
+        
+        # Remove markdown headers
+        ai_text = re.sub(r'^#+\s+', '', ai_text, flags=re.MULTILINE)
+        
+        # Replace horizontal rules
+        ai_text = ai_text.replace('---', '')
+        
+        # Split by paragraphs and add as simple text
+        paragraphs = ai_text.split('\n\n')
+        for para in paragraphs:
+            para = para.strip()
+            if para:
+                # Escape HTML special chars
+                para = para.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                # Convert newlines to breaks
+                para = para.replace('\n', '<br/>')
+                elements.append(Paragraph(para, normal_style))
+                elements.append(Spacer(1, 0.3*cm))
+        
+        elements.append(Spacer(1, 0.5*cm))
+    
+    # ===== ANAMNESE =====
+    if anamnese_data:
+        elements.append(PageBreak())
+        elements.append(Paragraph("📋 Anamnese", heading_style))
+        
+        anamnese_items = [
+            ("Patienten-ID", anamnese_data.get('patient_id', 'N/A')),
+            ("Alter", f"{anamnese_data.get('alter', 'N/A')} Jahre"),
+            ("Geschlecht", anamnese_data.get('geschlecht', 'N/A')),
+            ("Größe", f"{anamnese_data.get('groesse', 'N/A')} cm"),
+            ("Gewicht", f"{anamnese_data.get('gewicht', 'N/A')} kg"),
+            ("BMI", f"{anamnese_data.get('bmi', 'N/A')}"),
+            ("Hauptbeschwerde", anamnese_data.get('hauptbeschwerde', 'N/A')),
+        ]
+        
+        if anamnese_data.get('schmerz_ort'):
+            anamnese_items.append(("Schmerzlokalisation", ', '.join(anamnese_data['schmerz_ort'])))
+        if anamnese_data.get('schmerz_intensitaet') is not None:
+            anamnese_items.append(("Schmerzintensität", f"{anamnese_data['schmerz_intensitaet']}/10"))
+        if anamnese_data.get('therapie_ziel'):
+            anamnese_items.append(("Therapieziel", anamnese_data['therapie_ziel']))
+        
+        for label, value in anamnese_items:
+            elements.append(Paragraph(f"<b>{label}:</b> {value}", normal_style))
+            elements.append(Spacer(1, 0.15*cm))
     
     # ===== RECOMMENDATIONS =====
     elements.append(Paragraph("💡 Empfehlungen", heading_style))
